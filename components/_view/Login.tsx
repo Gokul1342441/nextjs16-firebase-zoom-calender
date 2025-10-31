@@ -16,7 +16,7 @@ import { doc, setDoc } from "firebase/firestore"
 import { signInWithEmailAndPassword } from "firebase/auth"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { auth, db } from "@/lib/firebase/admin/config"
+import { auth, db } from "@/lib/firebase/config/config"
 
 export function LoginCard() {
   const [email, setEmail] = useState('');
@@ -41,8 +41,6 @@ export function LoginCard() {
         uid: user.uid,
         name: user.displayName || "",
         email: user.email,
-        accessToken: idToken,
-        refreshToken: refreshToken,
         lastLogin: new Date().toISOString(),
       }, { merge: true });
 

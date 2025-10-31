@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { auth, db } from "@/lib/firebase/admin/config"
+import { auth, db } from "@/lib/firebase/config/config"
 import { doc, setDoc } from "firebase/firestore";
 import Link from "next/link";
 import { useState } from "react";
