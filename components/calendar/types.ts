@@ -7,6 +7,9 @@ export type CalendarEvent = {
   backgroundColor?: string
   borderColor?: string
   textColor?: string
+  userId: string // User who created the event
+  createdAt?: string
+  updatedAt?: string
 }
 
 export type EventFormData = {

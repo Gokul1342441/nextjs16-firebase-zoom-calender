@@ -2,9 +2,18 @@ import type { CalendarEvent, EventFormData } from './types'
 
 /**
  * Formats a date to ISO string for datetime-local input
+ * Uses local timezone instead of UTC to preserve the correct date
  */
 export function formatDateForInput(date: Date): string {
-  return date.toISOString().slice(0, 16)
+  // Get local date components
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  
+  // Format as YYYY-MM-DDTHH:mm for datetime-local input
+  return `${year}-${month}-${day}T${hours}:${minutes}`
 }
 
 /**
@@ -56,13 +65,18 @@ export function validateEventForm(formData: EventFormData): {
  */
 export function formDataToEvent(
   formData: EventFormData,
+  userId: string,
   eventId?: string
 ): CalendarEvent {
+  const now = new Date().toISOString()
   return {
     id: eventId || String(Date.now()),
     title: formData.title.trim(),
     start: new Date(formData.startTime).toISOString(),
     end: new Date(formData.endTime).toISOString(),
+    userId,
+    createdAt: eventId ? undefined : now, // Only set on create
+    updatedAt: now,
   }
 }
 

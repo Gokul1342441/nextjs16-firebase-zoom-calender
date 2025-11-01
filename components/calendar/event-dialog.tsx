@@ -26,6 +26,7 @@ type EventDialogProps = {
   onOpenChange: (open: boolean) => void
   event?: CalendarEvent | null
   initialFormData?: EventFormData
+  userId: string
   onSave: (event: CalendarEvent) => void | Promise<void>
   onDelete?: (eventId: string) => void
 }
@@ -35,6 +36,7 @@ export function EventDialog({
   onOpenChange,
   event,
   initialFormData,
+  userId,
   onSave,
   onDelete,
 }: EventDialogProps) {
@@ -85,11 +87,20 @@ export function EventDialog({
     setIsSubmitting(true)
 
     try {
+      const now = new Date().toISOString()
       const calendarEvent: CalendarEvent = {
         id: event?.id || String(Date.now()),
         title: formData.title.trim(),
         start: new Date(formData.startTime).toISOString(),
         end: new Date(formData.endTime).toISOString(),
+        userId,
+        createdAt: event?.createdAt || now,
+        updatedAt: now,
+        // Preserve optional fields when updating
+        allDay: event?.allDay,
+        backgroundColor: event?.backgroundColor,
+        borderColor: event?.borderColor,
+        textColor: event?.textColor,
       }
 
       await onSave(calendarEvent)
@@ -103,6 +114,10 @@ export function EventDialog({
 
   const handleDelete = () => {
     if (!event || !onDelete) return
+    if (event.userId !== userId) {
+      console.error('User can only delete their own events')
+      return
+    }
     onDelete(event.id)
     onOpenChange(false)
   }

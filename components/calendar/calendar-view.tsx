@@ -10,6 +10,7 @@ import type {
   EventClickArg,
   EventDropArg,
   EventChangeArg,
+  DateSelectArg,
 } from '@fullcalendar/core'
 import type { DateClickArg } from '@fullcalendar/interaction'
 import type { CalendarEvent } from './types'
@@ -18,6 +19,7 @@ import { formatDateForInput, getDefaultEndTime } from './utils'
 type CalendarViewProps = {
   events: CalendarEvent[]
   onDateClick: (startTime: string, endTime: string) => void
+  onSelect?: (startTime: string, endTime: string) => void
   onEventClick: (event: CalendarEvent) => void
   onEventDrop: (event: CalendarEvent) => void
   onEventResize: (event: CalendarEvent) => void
@@ -29,6 +31,7 @@ type CalendarViewProps = {
 export function CalendarView({
   events,
   onDateClick,
+  onSelect,
   onEventClick,
   onEventDrop,
   onEventResize,
@@ -44,6 +47,20 @@ export function CalendarView({
       onDateClick(startTime, endTime)
     },
     [onDateClick]
+  )
+
+  const handleSelect = useCallback(
+    (info: DateSelectArg) => {
+      if (onSelect && info.start && info.end) {
+        // Format the selected time range
+        const startTime = formatDateForInput(info.start)
+        const endTime = formatDateForInput(info.end)
+        onSelect(startTime, endTime)
+        // Unselect the range to allow clicking again
+        info.view.calendar.unselect()
+      }
+    },
+    [onSelect]
   )
 
   const handleEventClick = useCallback(
@@ -93,11 +110,13 @@ export function CalendarView({
         initialView={initialView}
         editable={true}
         selectable={true}
+        selectMirror={true}
         eventResizableFromStart={true}
         events={events}
         eventDrop={handleEventDrop}
         eventResize={handleEventResize}
         dateClick={handleDateClick}
+        select={handleSelect}
         eventClick={handleEventClick}
         headerToolbar={{
           left: 'prev,next today',
