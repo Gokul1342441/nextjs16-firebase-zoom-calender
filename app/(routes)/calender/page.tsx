@@ -6,6 +6,7 @@ import type { CalendarEvent, EventFormData } from '@/components/calendar'
 import { useCalendarEvents } from '@/hooks/use-calendar-events'
 import { useUser } from '@/hooks/use-user'
 import { Spinner } from '@/components/ui/spinner'
+import { toast } from 'sonner'
 
 
 export default function CalendarPage() {
@@ -73,8 +74,10 @@ export default function CalendarPage() {
     async (event: CalendarEvent) => {
       try {
         await saveEvent(event)
-      } catch (error) {
-        console.error('Error updating event after drop:', error)
+      } catch (error: any) {
+        toast.error('Failed to Drop Event', {
+          description: error.message || 'Could not drop the event. Please try again.',
+        })
       }
     },
     [saveEvent]
@@ -84,8 +87,10 @@ export default function CalendarPage() {
     async (event: CalendarEvent) => {
       try {
         await saveEvent(event)
-      } catch (error) {
-        console.error('Error updating event after resize:', error)
+      } catch (error: any) {
+        toast.error('Failed to Resize Event', {
+          description: error.message || 'Could not resize the event. Please try again.',
+        })
       }
     },
     [saveEvent]
@@ -111,6 +116,7 @@ export default function CalendarPage() {
         onEventClick={handleEventClick}
         onEventDrop={handleEventDrop}
         onEventResize={handleEventResize}
+        currentUserId={user?.uid || null}
       />
 
       <EventDialog

@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/field'
 import type { CalendarEvent, EventFormData, EventFormErrors } from './types'
 import { validateEventForm, eventToFormData } from './utils'
+import { useUserName } from '@/hooks/use-user-name'
 
 type EventDialogProps = {
   open: boolean
@@ -49,6 +50,8 @@ export function EventDialog({
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const isEditing = !!event
+  const isCreator = event ? event.userId === userId : false
+  const { userName: creatorName, loading: creatorLoading } = useUserName(event?.userId || null)
 
   // Reset form when dialog opens/closes or event changes
   useEffect(() => {
@@ -138,9 +141,24 @@ export function EventDialog({
             {isEditing ? 'Edit Event' : 'Create New Event'}
           </DialogTitle>
           <DialogDescription>
-            {isEditing
-              ? 'Update the event details below.'
-              : 'Fill in the details to create a new calendar event.'}
+            {isEditing ? (
+              <>
+                {creatorLoading ? (
+                  'Loading...'
+                ) : (
+                  <>
+                    {creatorName && (
+                      <span className="block mb-1">
+                        Created by: <span className="font-medium">{creatorName}</span>
+                      </span>
+                    )}
+                    Update the event details below. {!isCreator && 'Only the creator can delete this event.'}
+                  </>
+                )}
+              </>
+            ) : (
+              'Fill in the details to create a new calendar event.'
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -189,7 +207,7 @@ export function EventDialog({
         </FieldGroup>
 
         <DialogFooter className="gap-2 sm:gap-0">
-          {isEditing && onDelete && (
+          {isEditing && onDelete && isCreator && (
             <Button
               type="button"
               variant="destructive"

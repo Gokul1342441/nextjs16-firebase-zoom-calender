@@ -22,6 +22,7 @@ export function useCalendarEvents(userId: string | null) {
 
   // Fetch events from Firestore
   useEffect(() => {
+    // Only fetch if user is authenticated (required by Firestore rules)
     if (!userId) {
       setEvents([])
       setLoading(false)
@@ -31,10 +32,10 @@ export function useCalendarEvents(userId: string | null) {
     setLoading(true)
     setError(null)
 
-    // Query events for the current user (no orderBy to avoid index requirement)
+    // Query all events (shared calendar) - all authenticated users can see all events
+    // Note: Firestore rules require authentication, so userId must be provided
     const eventsQuery = query(
-      collection(db, "calendarEvents"),
-      where("userId", "==", userId)
+      collection(db, "calendarEvents")
     )
 
     const unsubscribe = onSnapshot(

@@ -2,6 +2,7 @@
 
 import { useCallback } from 'react'
 import FullCalendar from '@fullcalendar/react'
+import { toast } from 'sonner'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
@@ -21,8 +22,9 @@ type CalendarViewProps = {
   onDateClick: (startTime: string, endTime: string) => void
   onSelect?: (startTime: string, endTime: string) => void
   onEventClick: (event: CalendarEvent) => void
-  onEventDrop: (event: CalendarEvent) => void
-  onEventResize: (event: CalendarEvent) => void
+  onEventDrop: (event: CalendarEvent) => Promise<void>
+  onEventResize: (event: CalendarEvent) => Promise<void>
+  currentUserId: string | null
   initialView?: string
   height?: string | number
   aspectRatio?: number
@@ -35,6 +37,7 @@ export function CalendarView({
   onEventClick,
   onEventDrop,
   onEventResize,
+  currentUserId,
   initialView = 'timeGridWeek',
   height = 'auto',
   aspectRatio = 1.8,
@@ -74,33 +77,73 @@ export function CalendarView({
   )
 
   const handleEventDrop = useCallback(
-    (info: EventDropArg) => {
+    async (info: EventDropArg) => {
       const event = events.find((e) => e.id === info.event.id)
-      if (event && info.event.start && info.event.end) {
+      if (!event || !info.event.start || !info.event.end) {
+        return
+      }
+
+      // Check if current user is the creator
+      if (event.userId !== currentUserId) {
+        // Revert the event position
+        info.revert()
+        toast.error('Permission Denied', {
+          description: 'You can only move events that you created.',
+        })
+        return
+      }
+
+      try {
         const updatedEvent: CalendarEvent = {
           ...event,
           start: info.event.start.toISOString(),
           end: info.event.end.toISOString(),
         }
-        onEventDrop(updatedEvent)
+        await onEventDrop(updatedEvent)
+      } catch (error: any) {
+        // Revert the event position on error
+        info.revert()
+        toast.error('Failed to Update Event', {
+          description: error.message || 'Could not move the event. Please try again.',
+        })
       }
     },
-    [events, onEventDrop]
+    [events, onEventDrop, currentUserId]
   )
 
   const handleEventResize = useCallback(
-    (info: EventChangeArg) => {
+    async (info: EventChangeArg) => {
       const event = events.find((e) => e.id === info.event.id)
-      if (event && info.event.start && info.event.end) {
+      if (!event || !info.event.start || !info.event.end) {
+        return
+      }
+
+      // Check if current user is the creator
+      if (event.userId !== currentUserId) {
+        // Revert the event size
+        info.revert()
+        toast.error('Permission Denied', {
+          description: 'You can only resize events that you created.',
+        })
+        return
+      }
+
+      try {
         const updatedEvent: CalendarEvent = {
           ...event,
           start: info.event.start.toISOString(),
           end: info.event.end.toISOString(),
         }
-        onEventResize(updatedEvent)
+        await onEventResize(updatedEvent)
+      } catch (error: any) {
+        // Revert the event size on error
+        info.revert()
+        toast.error('Failed to Resize Event', {
+          description: error.message || 'Could not resize the event. Please try again.',
+        })
       }
     },
-    [events, onEventResize]
+    [events, onEventResize, currentUserId]
   )
 
   return (
