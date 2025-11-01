@@ -15,13 +15,13 @@ export function proxy(request: NextRequest) {
   const isPublicRoute = publicRoutes.includes(pathname);
   
   // Protected routes that require authentication
-  const protectedRoutes = ['/home', '/dashboard'];
+  const protectedRoutes = ['/dashboard'];
   const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
   
   // If accessing root, redirect based on authentication
   if (pathname === '/') {
     if (isAuthenticated) {
-      return NextResponse.redirect(new URL('/home', request.url));
+      return NextResponse.redirect(new URL('/dashboard', request.url));
     } else {
       return NextResponse.redirect(new URL('/login', request.url));
     }
@@ -32,9 +32,9 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
   
-  // If authenticated user tries to access login/signup, redirect to home
+  // If authenticated user tries to access login/signup, redirect to dashboard
   if (isPublicRoute && isAuthenticated) {
-    return NextResponse.redirect(new URL('/home', request.url));
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
   
   return NextResponse.next();

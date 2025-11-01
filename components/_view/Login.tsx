@@ -58,7 +58,7 @@ export function LoginCard() {
 
       console.log("User logged in and saved to Firestore ✅");
       
-      // Redirect to home after successful login
+      // Redirect to dashboard after successful login
       router.push('/dashboard');
 
     } catch (error: any) {

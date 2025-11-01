@@ -7,6 +7,7 @@ import {
   Settings2,
   LayoutDashboard
 } from "lucide-react"
+import { usePathname } from "next/navigation"
 
 import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
@@ -16,47 +17,61 @@ import {
   SidebarFooter,
   SidebarRail,
 } from "@/components/ui/sidebar"
+import { useUser } from "@/hooks/use-user"
 
-// This is sample data.
-const data = {
-  user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
+const navItems = [
+  {
+    title: "Dashboard",
+    url: "/dashboard",
+    icon: LayoutDashboard,
   },
-  navMain: [
-    {
-      title: "Dashboard",
-      url: "/dashboard",
-      icon: LayoutDashboard,
-      isActive: true,
-    },
-    {
-      title: "Calendar",
-      url: "/calender",
-      icon: Calendar1,
-    },
-    {
-      title: "Meetings",
-      url: "/meetings",
-      icon: Camera,
-    },
-    {
-      title: "Settings",
-      url: "/settings",
-      icon: Settings2,
-    },
-  ],
-}
+  {
+    title: "Calendar",
+    url: "/calender",
+    icon: Calendar1,
+  },
+  {
+    title: "Meetings",
+    url: "/meetings",
+    icon: Camera,
+  },
+  {
+    title: "Settings",
+    url: "/settings",
+    icon: Settings2,
+  },
+]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const pathname = usePathname()
+  const { userDetails, loading } = useUser()
+
+  // Mark active item based on current pathname
+  const navMainItems = navItems.map((item) => ({
+    ...item,
+    isActive: pathname === item.url,
+  }))
+
+  // Default user data if not loaded yet
+  const userData = userDetails
+    ? {
+        name: userDetails.name || "User",
+        email: userDetails.email || "",
+        avatar: userDetails.avatar || "",
+      }
+    : {
+        name: "Loading...",
+        email: "",
+        avatar: "",
+      }
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarContent>
-        <NavMain items={data.navMain} />
+        <NavMain items={navMainItems} />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        {!loading && userDetails && <NavUser user={userData} />}
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
