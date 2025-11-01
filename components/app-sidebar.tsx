@@ -20,26 +20,26 @@ import {
 import { useUser } from "@/hooks/use-user"
 
 const navItems = [
-  {
-    title: "Dashboard",
-    url: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Calendar",
-    url: "/calender",
-    icon: Calendar1,
-  },
-  {
-    title: "Meetings",
-    url: "/meetings",
-    icon: Camera,
-  },
-  {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings2,
-  },
+    {
+      title: "Dashboard",
+      url: "/dashboard",
+      icon: LayoutDashboard,
+    },
+    {
+      title: "Calendar",
+      url: "/calender",
+      icon: Calendar1,
+    },
+    {
+      title: "Meetings",
+      url: "/meetings",
+      icon: Camera,
+    },
+    {
+      title: "Settings",
+      url: "/settings",
+      icon: Settings2,
+    },
 ]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {

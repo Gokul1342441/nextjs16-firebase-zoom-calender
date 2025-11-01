@@ -40,6 +40,15 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
+:root {
+  --fc-border-color: rgba(171, 171, 171, 0.5);
+  --fc-daygrid-event-dot-width: 2px;
+  --fc-daygrid-event-bg-opacity: 0.5;
+  --fc-daygrid-event-text-color: black;
+  --fc-daygrid-event-border-color: rgba(171, 171, 171, 0.5);
+  --fc-daygrid-event-border-radius: 2px;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
