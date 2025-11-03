@@ -8,8 +8,7 @@ export default function MeetingPage() {
   const meetingId = params.meetingId as string
   
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-      <h1 className="text-xl font-semibold">Meeting ID: {meetingId}</h1>
+    <div className="flex flex-col items-center justify-center min-h-screen">
       <ZoomMeetingClient meetingId={meetingId} />
     </div>
   )

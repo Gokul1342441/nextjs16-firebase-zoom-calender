@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import ZoomVideo from '@zoom/videosdk'
 import { Button } from '@/components/ui/button'
-import { PhoneOff } from 'lucide-react'
+import { Video } from 'lucide-react'
+import { useUser } from '@/hooks/use-user'
+import { useSearchParams } from 'next/navigation'
 
 interface Props {
   meetingId: string
@@ -13,207 +14,177 @@ export default function ZoomMeetingClient({ meetingId }: Props) {
   const [joined, setJoined] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const clientRef = useRef<any>(null)
-  const videoContainerRef = useRef<HTMLDivElement>(null)
-  const handlersRef = useRef<{
-    onPeerVideo?: (payload: any) => void
-    onPeerAudio?: (payload: any) => void
-    onUserAdded?: (payload: any) => void
-    onUserRemoved?: (payload: any) => void
-  }>({})
+  const sessionContainerRef = useRef<HTMLDivElement>(null)
+  const uitRef = useRef<any>(null)
+  const { userDetails } = useUser()
+  const styleElementRef = useRef<HTMLStyleElement | null>(null)
+  const searchParams = useSearchParams()
+  const name = searchParams.get('name')
 
   useEffect(() => {
     return () => {
-      if (clientRef.current) {
-        try {
-          // Remove listeners if any were registered
-          const client = clientRef.current
-          const { onPeerVideo, onPeerAudio, onUserAdded, onUserRemoved } = handlersRef.current
-          if (onPeerVideo) client.off('peer-video-state-change', onPeerVideo)
-          if (onPeerAudio) client.off('peer-audio-state-change', onPeerAudio)
-          if (onUserAdded) client.off('user-added', onUserAdded)
-          if (onUserRemoved) client.off('user-removed', onUserRemoved)
-        } catch {}
-        clientRef.current.leave().catch(console.error)
+      // Cleanup on unmount
+      try {
+        if (uitRef.current) {
+          uitRef.current.closeSession()
+        }
+        // Remove injected styles
+        if (styleElementRef.current && styleElementRef.current.parentNode) {
+          styleElementRef.current.parentNode.removeChild(styleElementRef.current)
+        }
+      } catch (err) {
+        console.error('Cleanup error:', err)
       }
     }
   }, [])
+
+  const injectZoomStyles = async () => {
+    const response = await fetch('https://source.zoom.us/uitoolkit/2.2.10-1/videosdk-ui-toolkit.css')
+    const css = await response.text()
+    
+    // No need to modify - the CSS is already scoped to .zoom-ui-toolkit-root
+    // Just inject it as-is
+    const styleElement = document.createElement('style')
+    styleElement.setAttribute('data-zoom-sdk', 'true')
+    styleElement.textContent = css
+    document.head.appendChild(styleElement)
+    styleElementRef.current = styleElement
+  }
 
   const joinMeeting = async () => {
     try {
       setLoading(true)
       setError(null)
 
+      // Get JWT signature from your API
       const res = await fetch('/api/zoom/signature', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: meetingId, role_type: 1 }),
+        body: JSON.stringify({ 
+          topic: meetingId, 
+          role_type: 1,
+          videoWebRtcMode: 1 
+        }),
       })
 
       const { signature } = await res.json()
       if (!signature) throw new Error('Failed to get signature')
 
-      const client = ZoomVideo.createClient()
-      clientRef.current = client
+      const container = sessionContainerRef.current
+      if (!container) throw new Error('Session container not found')
 
-      const supportsGetDisplayMedia = typeof navigator !== 'undefined' &&
-        typeof (navigator as any).mediaDevices !== 'undefined' &&
-        typeof (navigator as any).mediaDevices.getDisplayMedia === 'function'
+      // Inject Zoom styles (already scoped)
+      await injectZoomStyles()
 
-      await client.init('en-US', 'Global', { patchJsMedia: supportsGetDisplayMedia })
-      await client.join(meetingId, signature, userName)
+      // Dynamically import UI Toolkit
+      const uitoolkit = (await import('@zoom/videosdk-ui-toolkit')).default
+      uitRef.current = uitoolkit
 
-      const mediaStream = client.getMediaStream()
-      await mediaStream.startAudio()
-      await mediaStream.startVideo()
-
-      const user = client.getCurrentUserInfo()
-      const VideoQuality = await import('@zoom/videosdk').then(m => m.VideoQuality)
-      const videoElement = await mediaStream.attachVideo(user.userId, VideoQuality.Video_360P)
-      
-      if (videoElement instanceof HTMLElement) {
-        videoContainerRef.current?.appendChild(videoElement)
+      // Configure UI Toolkit
+      const config = {
+        videoSDKJWT: signature,
+        sessionName: meetingId,
+        userName: userDetails?.name as string,
+        sessionPasscode: '',
+        featuresOptions: {
+          preview: {
+            enable: true,
+          },
+          virtualBackground: {
+            enable: true,
+            virtualBackgrounds: [
+              {
+                url: 'https://images.unsplash.com/photo-1715490187538-30a365fa05bd?q=80&w=1945&auto=format&fit=crop',
+              },
+            ],
+          },
+          toolbar: {
+            enable: true,
+          },
+          video: {
+            enable: true,
+          },
+          audio: {
+            enable: true,
+          },
+          share: {
+            enable: true,
+          },
+          chat: {
+            enable: true,
+            enableEmoji: true,
+          },
+          feedback: {
+            enable: false,
+          },
+          theme: {
+            enable: false,
+            defaultTheme: "light" as "light" | "dark" | "blue" | "green" | undefined,
+          },
+        },
       }
 
-      // Render existing participants and subscribe to their audio
-      const existingUsers = client.getAllUser()
-      const ms: any = mediaStream
-      for (const u of existingUsers) {
-        if (u.userId === user.userId) continue
-        try {
-          await ms.subscribeAudio(u.userId)
+      // Join session
+      await uitoolkit.joinSession(container, config)
+
+      // Setup session event listeners
+      uitoolkit.onSessionClosed(() => {
+        console.log('Session closed')
+        setJoined(false)
+      })
+
+      uitoolkit.onSessionDestroyed(() => {
+        console.log('Session destroyed')
+        try { 
+          uitoolkit.destroy() 
+          // Remove styles when session ends
+          if (styleElementRef.current && styleElementRef.current.parentNode) {
+            styleElementRef.current.parentNode.removeChild(styleElementRef.current)
+          }
         } catch {}
-        if (u.bVideoOn) {
-          const remoteEl = await mediaStream.attachVideo(u.userId, VideoQuality.Video_360P)
-          if (remoteEl instanceof HTMLElement) {
-            videoContainerRef.current?.appendChild(remoteEl)
-          }
-        }
-      }
-
-      // Event handlers
-      const onPeerVideo = async (payload: any) => {
-        if (payload.action === 'Start') {
-          const remoteVideo = await mediaStream.attachVideo(payload.userId, VideoQuality.Video_360P)
-          if (remoteVideo instanceof HTMLElement) {
-            videoContainerRef.current?.appendChild(remoteVideo)
-          }
-        } else if (payload.action === 'Stop') {
-          const elements = await mediaStream.detachVideo(payload.userId)
-          if (Array.isArray(elements)) {
-            elements.forEach((el) => {
-              if (el instanceof HTMLElement) {
-                el.remove()
-              }
-            })
-          } else if (elements instanceof HTMLElement) {
-            elements.remove()
-          }
-        }
-      }
-
-      const onPeerAudio = async (payload: any) => {
-        const msAny: any = mediaStream
-        if (payload.action === 'Start') {
-          try { await msAny.subscribeAudio(payload.userId) } catch {}
-        } else if (payload.action === 'Stop') {
-          try { await msAny.unsubscribeAudio(payload.userId) } catch {}
-        }
-      }
-
-      const onUserAdded = async (payload: any) => {
-        const msAny: any = mediaStream
-        if (payload.userId === user.userId) return
-        try { await msAny.subscribeAudio(payload.userId) } catch {}
-        if (payload.bVideoOn) {
-          const el = await mediaStream.attachVideo(payload.userId, VideoQuality.Video_360P)
-          if (el instanceof HTMLElement) {
-            videoContainerRef.current?.appendChild(el)
-          }
-        }
-      }
-
-      const onUserRemoved = async (payload: any) => {
-        const msAny: any = mediaStream
-        const elements = await mediaStream.detachVideo(payload.userId)
-        if (Array.isArray(elements)) {
-          elements.forEach((el) => {
-            if (el instanceof HTMLElement) el.remove()
-          })
-        } else if (elements instanceof HTMLElement) {
-          elements.remove()
-        }
-        try { await msAny.unsubscribeAudio(payload.userId) } catch {}
-      }
-
-      client.on('peer-video-state-change', onPeerVideo)
-      client.on('peer-audio-state-change', onPeerAudio)
-      client.on('user-added', onUserAdded)
-      client.on('user-removed', onUserRemoved)
-
-      handlersRef.current.onPeerVideo = onPeerVideo
-      handlersRef.current.onPeerAudio = onPeerAudio
-      handlersRef.current.onUserAdded = onUserAdded
-      handlersRef.current.onUserRemoved = onUserRemoved
-
+        setJoined(false)
+      })
 
       setJoined(true)
     } catch (err: any) {
       console.error('Join error:', err)
-      setError(err.message)
+      setError(err.message || 'Failed to join meeting')
     } finally {
       setLoading(false)
     }
   }
 
-  const leaveMeeting = async () => {
-    try {
-      const client = clientRef.current
-      if (!client) return
-
-      const mediaStream = client.getMediaStream()
-      const msAny: any = mediaStream
-      try {
-        const allUsers = client.getAllUser()
-        for (const u of allUsers) {
-          try { await mediaStream.detachVideo(u.userId) } catch {}
-          try { await msAny.unsubscribeAudio(u.userId) } catch {}
-        }
-      } catch {}
-
-      const { onPeerVideo, onPeerAudio, onUserAdded, onUserRemoved } = handlersRef.current
-      if (onPeerVideo) client.off('peer-video-state-change', onPeerVideo)
-      if (onPeerAudio) client.off('peer-audio-state-change', onPeerAudio)
-      if (onUserAdded) client.off('user-added', onUserAdded)
-      if (onUserRemoved) client.off('user-removed', onUserRemoved)
-
-      await client.leave()
-      setJoined(false)
-      window.location.href = '/'
-    } catch (err) {
-      console.error('Leave error:', err)
-    }
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+        <p className="text-red-500 text-center">{error}</p>
+        <Button onClick={() => setError(null)} variant="outline">
+          Try Again
+        </Button>
+      </div>
+    )
   }
 
-  if (error) return <p className="text-red-500 text-center mt-10">{error}</p>
-
   return (
-    <>
-      <div
-        ref={videoContainerRef}
-      />
-
-      {!joined ? (
-        <Button onClick={joinMeeting} disabled={loading}>
-          {loading ? 'Joining...' : 'Join Meeting'}
-        </Button>
-      ) : (
-        <Button variant="destructive" onClick={leaveMeeting}>
-          <PhoneOff className="mr-2 h-4 w-4" /> Leave Meeting
-        </Button>
+    <div className="w-full h-full flex flex-col">
+      {!joined && (
+        <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+          <h2 className="text-2xl font-bold">Zoom Video SDK Meeting</h2>
+          <p className="text-gray-600">Session: {name}</p>
+          <Button onClick={joinMeeting} disabled={loading} size="lg">
+            <Video className="mr-2 h-5 w-5" />
+            {loading ? 'Joining...' : 'Join Meeting'}
+          </Button>
+        </div>
       )}
-    </>
+      
+      {/* IMPORTANT: Use .zoom-ui-toolkit-root instead of .zoom-meeting-wrapper */}
+      <div className="zoom-ui-toolkit-root">
+        <div
+          ref={sessionContainerRef}
+          className="w-full h-[calc(100vh-100px)]"
+        />
+      </div>
+    </div>
   )
 }
-
-const userName = `User-${new Date().getTime().toString().slice(8)}`
