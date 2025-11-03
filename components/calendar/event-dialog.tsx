@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { Edit2, Video } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -41,6 +43,7 @@ export function EventDialog({
   onSave,
   onDelete,
 }: EventDialogProps) {
+  const router = useRouter()
   const [formData, setFormData] = useState<EventFormData>({
     title: '',
     startTime: '',
@@ -48,24 +51,38 @@ export function EventDialog({
   })
   const [errors, setErrors] = useState<EventFormErrors>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isEditMode, setIsEditMode] = useState(false)
 
-  const isEditing = !!event
+  const isViewingEvent = !!event
   const isCreator = event ? event.userId === userId : false
   const { userName: creatorName, loading: creatorLoading } = useUserName(event?.userId || null)
+
+  // When opening an event, start in view mode. For new events, start in edit mode.
+  const isFormReadOnly = isViewingEvent && !isEditMode
+
+  const handleJoinMeeting = () => {
+    if (event?.id) {
+      router.push(`/meetings/${event.id}`)
+      onOpenChange(false)
+    }
+  }
 
   // Reset form when dialog opens/closes or event changes
   useEffect(() => {
     if (open) {
       if (event) {
         setFormData(eventToFormData(event))
+        setIsEditMode(false) // Start in view mode for existing events
       } else if (initialFormData) {
         setFormData(initialFormData)
+        setIsEditMode(true) // Start in edit mode for new events
       } else {
         setFormData({
           title: '',
           startTime: '',
           endTime: '',
         })
+        setIsEditMode(true) // Start in edit mode for new events
       }
       setErrors({})
     } else {
@@ -76,6 +93,7 @@ export function EventDialog({
         endTime: '',
       })
       setErrors({})
+      setIsEditMode(false)
     }
   }, [open, event, initialFormData])
 
@@ -96,7 +114,8 @@ export function EventDialog({
         title: formData.title.trim(),
         start: new Date(formData.startTime).toISOString(),
         end: new Date(formData.endTime).toISOString(),
-        userId,
+        // Use event's userId if updating, otherwise use current user's id for new events
+        userId: event?.userId || userId,
         createdAt: event?.createdAt || now,
         updatedAt: now,
         // Preserve optional fields when updating
@@ -107,7 +126,12 @@ export function EventDialog({
       }
 
       await onSave(calendarEvent)
-      onOpenChange(false)
+      // If editing existing event, go back to view mode, otherwise close
+      if (isViewingEvent) {
+        setIsEditMode(false)
+      } else {
+        onOpenChange(false)
+      }
     } catch (error) {
       console.error('Error saving event:', error)
     } finally {
@@ -137,11 +161,28 @@ export function EventDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>
-            {isEditing ? 'Edit Event' : 'Create New Event'}
-          </DialogTitle>
+          <div className="flex items-center justify-between pr-3">
+            <DialogTitle>
+              {isViewingEvent 
+                ? isEditMode 
+                  ? 'Edit Event' 
+                  : 'Event Details'
+                : 'Create New Event'}
+            </DialogTitle>
+            {isViewingEvent && !isEditMode && isCreator && (
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                onClick={() => setIsEditMode(true)}
+                className="gap-2"
+              >
+                <Edit2 className="h-3 w-3 cursor-pointer underline" />
+              </Button>
+            )}
+          </div>
           <DialogDescription>
-            {isEditing ? (
+            {isViewingEvent ? (
               <>
                 {creatorLoading ? (
                   'Loading...'
@@ -152,7 +193,14 @@ export function EventDialog({
                         Created by: <span className="font-medium">{creatorName}</span>
                       </span>
                     )}
-                    Update the event details below. {!isCreator && 'Only the creator can delete this event.'}
+                    {!isEditMode && !isCreator && (
+                      <span className="block text-sm text-muted-foreground">
+                        Only the creator can edit or delete this event.
+                      </span>
+                    )}
+                    {isEditMode && (
+                      <span>Update the event details below.</span>
+                    )}
                   </>
                 )}
               </>
@@ -165,49 +213,77 @@ export function EventDialog({
         <FieldGroup>
           <Field>
             <FieldLabel htmlFor="event-title">Event Title</FieldLabel>
-            <Input
-              id="event-title"
-              placeholder="Enter event title"
-              value={formData.title}
-              onChange={(e) => updateField('title', e.target.value)}
-              disabled={isSubmitting}
-              aria-invalid={!!errors.title}
-            />
-            {errors.title && <FieldError>{errors.title}</FieldError>}
+            {isFormReadOnly ? (
+              <div className="px-3 py-2 text-sm border border-input rounded-md bg-muted">
+                {formData.title || '—'}
+              </div>
+            ) : (
+              <>
+                <Input
+                  id="event-title"
+                  placeholder="Enter event title"
+                  value={formData.title}
+                  onChange={(e) => updateField('title', e.target.value)}
+                  disabled={isSubmitting || isFormReadOnly}
+                  aria-invalid={!!errors.title}
+                />
+                {errors.title && <FieldError>{errors.title}</FieldError>}
+              </>
+            )}
           </Field>
 
           <Field>
             <FieldLabel htmlFor="start-time">Start Date & Time</FieldLabel>
-            <Input
-              id="start-time"
-              type="datetime-local"
-              value={formData.startTime}
-              onChange={(e) => updateField('startTime', e.target.value)}
-              disabled={isSubmitting}
-              aria-invalid={!!errors.startTime}
-            />
-            {errors.startTime && <FieldError>{errors.startTime}</FieldError>}
+            {isFormReadOnly ? (
+              <div className="px-3 py-2 text-sm border border-input rounded-md bg-muted">
+                {formData.startTime 
+                  ? new Date(formData.startTime).toLocaleString()
+                  : '—'}
+              </div>
+            ) : (
+              <>
+                <Input
+                  id="start-time"
+                  type="datetime-local"
+                  value={formData.startTime}
+                  onChange={(e) => updateField('startTime', e.target.value)}
+                  disabled={isSubmitting || isFormReadOnly}
+                  aria-invalid={!!errors.startTime}
+                />
+                {errors.startTime && <FieldError>{errors.startTime}</FieldError>}
+              </>
+            )}
           </Field>
 
           <Field>
             <FieldLabel htmlFor="end-time">End Date & Time</FieldLabel>
-            <Input
-              id="end-time"
-              type="datetime-local"
-              value={formData.endTime}
-              onChange={(e) => updateField('endTime', e.target.value)}
-              disabled={isSubmitting}
-              aria-invalid={!!errors.endTime}
-            />
-            {errors.endTime && <FieldError>{errors.endTime}</FieldError>}
-            <FieldDescription>
-              The end time must be after the start time.
-            </FieldDescription>
+            {isFormReadOnly ? (
+              <div className="px-3 py-2 text-sm border border-input rounded-md bg-muted">
+                {formData.endTime 
+                  ? new Date(formData.endTime).toLocaleString()
+                  : '—'}
+              </div>
+            ) : (
+              <>
+                <Input
+                  id="end-time"
+                  type="datetime-local"
+                  value={formData.endTime}
+                  onChange={(e) => updateField('endTime', e.target.value)}
+                  disabled={isSubmitting || isFormReadOnly}
+                  aria-invalid={!!errors.endTime}
+                />
+                {errors.endTime && <FieldError>{errors.endTime}</FieldError>}
+                <FieldDescription>
+                  The end time must be after the start time.
+                </FieldDescription>
+              </>
+            )}
           </Field>
         </FieldGroup>
 
         <DialogFooter className="gap-2 sm:gap-0">
-          {isEditing && onDelete && isCreator && (
+          {isViewingEvent && isEditMode && onDelete && isCreator && (
             <Button
               type="button"
               variant="destructive"
@@ -218,25 +294,57 @@ export function EventDialog({
               Delete
             </Button>
           )}
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={isSubmitting}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            onClick={handleSave}
-            disabled={isSubmitting}
-          >
-            {isSubmitting
-              ? 'Saving...'
-              : isEditing
-                ? 'Update'
-                : 'Create'}
-          </Button>
+          {isFormReadOnly ? (
+            // View mode footer - Join Meeting button and close button
+            <>
+              <Button
+                type="button"
+                onClick={handleJoinMeeting}
+                className="gap-2"
+              >
+                <Video className="h-4 w-4" />
+                Join Meeting
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+              >
+                Close
+              </Button>
+            </>
+          ) : (
+            // Edit mode footer
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  if (isViewingEvent) {
+                    setIsEditMode(false) // Cancel edit, go back to view mode
+                  } else {
+                    onOpenChange(false) // Close dialog for new events
+                  }
+                }}
+                disabled={isSubmitting}
+              >
+                {isViewingEvent ? 'Cancel' : 'Close'}
+              </Button>
+              {isEditMode && (
+                <Button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting
+                    ? 'Saving...'
+                    : isViewingEvent
+                      ? 'Update'
+                      : 'Create'}
+                </Button>
+              )}
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
