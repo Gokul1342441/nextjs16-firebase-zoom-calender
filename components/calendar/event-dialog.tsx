@@ -62,7 +62,6 @@ export function EventDialog({
 
   const handleJoinMeeting = () => {
     if (event?.id) {
-      // router.push(`/meetings/${event.id}`)
       router.push(`/meetings/${event.id}?name=${encodeURIComponent(event.title)}`)
       onOpenChange(false)
     }
